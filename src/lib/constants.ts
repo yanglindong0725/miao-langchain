@@ -33,6 +33,13 @@ export const MODULES: ModuleCategory[] = [
         path: '/modules/basic/chains',
       },
       {
+        id: 'chain-composition',
+        title: 'Chain Composition',
+        description: '链的组合，构建多步骤工作流',
+        icon: '🔗',
+        path: '/modules/basic/chain-composition',
+      },
+      {
         id: 'few-shot',
         title: 'Few-shot Learning',
         description: '通过少量示例教会模型完成任务',

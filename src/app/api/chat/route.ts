@@ -1,89 +1,39 @@
-import { ChatOpenAI } from "@langchain/openai";
-import {
-  ChatPromptTemplate,
-  FewShotChatMessagePromptTemplate,
-} from "@langchain/core/prompts";
 import { NextResponse } from "next/server";
+import { createModel, getChainHandler, ChainRequest } from "@/lib/chains";
 
+/**
+ * Chat API 路由处理器
+ * 统一处理各种 LangChain 请求
+ */
 export async function POST(req: Request) {
   try {
-    const { type, input } = await req.json();
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const { type, input, subType }: ChainRequest = await req.json();
 
-    // 初始化模型
-    const model = new ChatOpenAI({
-      model: "deepseek-chat",
-      temperature: 0.7,
-      openAIApiKey: apiKey,
-      configuration: {
-        baseURL: "https://api.deepseek.com",
-      },
-      maxTokens: 4096,
-    });
-
-    let chain;
-
-    switch (type) {
-      case "translation":
-        // 翻译提示模板
-        const translationPrompt = ChatPromptTemplate.fromMessages([
-          ["system", "你是一个专业的翻译助手，将中英文互译。"],
-          ["human", "{text}"],
-        ]);
-        chain = translationPrompt.pipe(model);
-        break;
-
-      case "summarize":
-        // 摘要提示模板
-        const summarizePrompt = ChatPromptTemplate.fromMessages([
-          ["system", "请用一句话总结以下内容："],
-          ["human", "{text}"],
-        ]);
-        chain = summarizePrompt.pipe(model);
-        break;
-
-      case "fewshot":
-        // Few-shot 学习示例
-        const examples = [
-          { input: "开心", output: "😊" },
-          { input: "难过", output: "😢" },
-        ];
-
-        const examplePrompt = ChatPromptTemplate.fromMessages([
-          ["human", "{input}"],
-          ["ai", "{output}"],
-        ]);
-
-        const fewShotPrompt = new FewShotChatMessagePromptTemplate({
-          examplePrompt,
-          examples,
-          inputVariables: ["input"],
-        });
-
-        const finalPrompt = ChatPromptTemplate.fromMessages([
-          ["system", "将情绪词转换为对应的表情符号"],
-          fewShotPrompt as any,
-          ["human", "{input}"],
-        ]);
-        
-        chain = finalPrompt.pipe(model);
-        break;
-
-      default:
-        return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+    // 验证输入
+    if (!type || !input) {
+      return NextResponse.json(
+        { error: "Missing required fields: type and input" },
+        { status: 400 }
+      );
     }
 
-    // 执行链
-    const response = await chain.invoke({
-      text: input,
-      input,
-    });
+    // 创建模型实例
+    const model = createModel();
 
-    return NextResponse.json({
-      response: response.content,
-    });
+    // 获取对应的 Chain Handler
+    const handler = getChainHandler(type);
+
+    if (!handler) {
+      return NextResponse.json(
+        { error: `Invalid type: ${type}` },
+        { status: 400 }
+      );
+    }
+
+    // 执行处理
+    return await handler.handle(input, model, subType);
   } catch (error) {
-    console.error("Error", error);
+    console.error("Error processing request:", error);
     return NextResponse.json(
       { error: "Failed to process request" },
       { status: 500 }
